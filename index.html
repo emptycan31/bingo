@@ -126,7 +126,7 @@ function render(){
   const locked=opened>0||!!(store._started&&store._started[k]);
   rb.disabled=locked;
   rb.textContent=locked?"作り直しは使用後は不可":"カードを作り直す";
-  document.getElementById("sub").textContent=k===nowKey?"タップして数字を開けましょう":"過去の月のカードです";
+  document.getElementById("sub").textContent=k===nowKey?"タップして数字を開けた日を入力しよう":"過去の月のカードです";
   document.getElementById("name").value=(store._name&&store._name[k])||"";
 }
 
