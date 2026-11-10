@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>月イチビンゴ</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#fbf7f0;--surface:#fff;--text:#2b2623;--muted:#8a7f76;--accent:#006E6E;--accent-soft:#d8efee;--line:#e6ddd1;--done:#62c48c;--done-text:#0c3b27;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1d1a18;--surface:#2a2623;--text:#f2ebe4;--muted:#a09489;--accent:#40bdbd;--accent-soft:#1f3d3d;--line:#3f3833;--done:#3fa874;--done-text:#05231a;}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;min-height:100vh}
+main{max-width:480px;margin:0 auto;padding:16px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.head h1{font-size:20px;margin:0}
+.nav button{background:none;border:1px solid var(--line);color:var(--text);border-radius:8px;width:36px;height:36px;font-size:16px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 12px;min-height:18px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.h{text-align:center;font-weight:800;color:var(--accent);font-size:18px}
+.c{aspect-ratio:1;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:12px;font-size:clamp(20px,7vw,30px);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;position:relative}
+.c small{font-size:11px;font-weight:500;margin-top:2px}
+.c.on{background:var(--done);color:var(--done-text);border-color:var(--done)}
+.c.line{outline:3px solid var(--accent)}
+.c.free{background:var(--accent-soft);color:var(--accent);font-size:14px}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:8px}
+.foot span{font-size:14px}
+.ghost{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 12px;font-size:13px}
+.ghost.warn{border-color:var(--accent);color:var(--accent)}
+.ghost:disabled{opacity:.5}
+.namerow{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;align-items:center;margin:0 0 12px}
+.namerow .sub{grid-column:1/4;margin:0}
+.namerow input{grid-column:4/6;width:100%;min-width:0;font-size:14px;text-align:center;padding:7px 6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
+.created{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 14px;color:var(--muted);font-size:12px;margin:20px 0 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.modal.show{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:480px;border-radius:18px 18px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet h2{margin:0 0 12px;font-size:18px}
+.sheet input{width:100%;font-size:18px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text)}
+.row{display:flex;gap:8px;margin-top:14px}
+.row button{flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text);font-size:15px}
+.row .pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+  <div class="head">
+    <h1>🎯 <span id="title"></span></h1>
+    <div class="nav"><button id="prev" aria-label="前の月">◀</button> <button id="next" aria-label="次の月">▶</button></div>
+  </div>
+  <div class="namerow"><p class="sub" id="sub"></p><input type="text" id="name" placeholder="なまえ" maxlength="20" aria-label="なまえ"></div>
+  <div class="grid" id="grid"></div>
+  <div class="foot"><span id="count"></span><button class="ghost" id="reset">カードを作り直す</button></div>
+  <p class="created"><span id="created"></span><span id="bingo"></span></p>
+</main>
+
+<div class="modal" id="modal">
+  <div class="sheet">
+    <h2 id="mtitle"></h2>
+    <input type="text" id="dateInput" placeholder="例：11/10" inputmode="text" maxlength="20">
+    <div class="row">
+      <button id="cancel">キャンセル</button>
+      <button id="unopen">空きを戻す</button>
+      <button class="pri" id="save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const RANGES=[[1,15],[16,30],[31,45],[46,60],[61,75]];
+const LETTERS="BINGO";
+const KEY="bingo-cards-v1";
+let store={};
+try{store=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){store={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(store))}catch(e){}}
+function monthKey(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+let view=new Date();view=new Date(view.getFullYear(),view.getMonth(),1);
+const nowKey=monthKey(new Date());
+
+function makeCard(){
+  const cols=RANGES.map(([a,b])=>{
+    const pool=[];for(let i=a;i<=b;i++)pool.push(i);
+    for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+    return pool.slice(0,5);
+  });
+  const cells=[];
+  for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+    cells.push(r===2&&c===2?{free:true}:{n:cols[c][r],date:null});
+  }
+  return cells;
+}
+function stamp(k){const d=new Date();(store._created=store._created||{})[k]=d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();save()}
+function card(){
+  const k=monthKey(view);
+  if(!store[k]){store[k]=makeCard();stamp(k)}else if(!(store._created&&store._created[k]))stamp(k);
+  return store[k];
+}
+const LINES=[];
+for(let i=0;i<5;i++){LINES.push([0,1,2,3,4].map(c=>i*5+c));LINES.push([0,1,2,3,4].map(r=>r*5+i))}
+LINES.push([0,6,12,18,24]);LINES.push([4,8,12,16,20]);
+const isOn=x=>x.free||x.date!==null;
+
+function render(){
+  const k=monthKey(view);
+  document.getElementById("title").textContent=view.getFullYear()+"年"+(view.getMonth()+1)+"月のビンゴ";
+  document.getElementById("next").disabled=k>=nowKey;
+  const cells=card();
+  const pad=s=>s.split("/").map(p=>p.padStart(2,"0")).join("/");
+  document.getElementById("created").textContent="カード作成日："+pad(store._created[k]);
+  const g=document.getElementById("grid");g.innerHTML="";
+  [...LETTERS].forEach(l=>{const d=document.createElement("div");d.className="h";d.textContent=l;g.appendChild(d)});
+  const done=LINES.filter(L=>L.every(i=>isOn(cells[i])));
+  const inLine=new Set(done.flat());
+  cells.forEach((x,i)=>{
+    const b=document.createElement("button");
+    b.className="c"+(x.free?" free on":"")+(!x.free&&x.date!==null?" on":"")+(inLine.has(i)?" line":"");
+    b.textContent=x.free?"FREE":x.n;
+    if(!x.free&&x.date){const s=document.createElement("small");s.textContent=x.date;b.appendChild(s)}
+    if(!x.free)b.onclick=()=>openModal(i);
+    g.appendChild(b);
+  });
+  const opened=cells.filter(x=>!x.free&&x.date!==null).length;
+  document.getElementById("count").textContent="開いた数 "+opened+"/24　ビンゴ "+done.length+"本";
+  if(done.length>0&&!(store._bingo&&store._bingo[k])){const d=new Date();(store._bingo=store._bingo||{})[k]=d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();save()}
+  document.getElementById("bingo").textContent="ビンゴ達成日："+(store._bingo&&store._bingo[k]?pad(store._bingo[k]):"----/--/--");
+  const locked=opened>0||!!(store._started&&store._started[k]);
+  rb.disabled=locked;
+  rb.textContent=locked?"作り直しは使用後は不可":"カードを作り直す";
+  document.getElementById("sub").textContent=k===nowKey?"タップして数字を開けましょう":"過去の月のカードです";
+  document.getElementById("name").value=(store._name&&store._name[k])||"";
+}
+
+let cur=null;
+function openModal(i){
+  cur=i;const x=card()[i];
+  document.getElementById("mtitle").textContent=x.n+" を開ける";
+  const d=new Date();
+  document.getElementById("dateInput").value=x.date||(d.getMonth()+1)+"/"+d.getDate();
+  document.getElementById("unopen").style.display=x.date!==null?"":"none";
+  document.getElementById("modal").classList.add("show");
+  setTimeout(()=>document.getElementById("dateInput").select(),50);
+}
+function closeModal(){document.getElementById("modal").classList.remove("show");cur=null}
+document.getElementById("cancel").onclick=closeModal;
+document.getElementById("modal").onclick=e=>{if(e.target.id==="modal")closeModal()};
+document.getElementById("save").onclick=()=>{
+  const v=document.getElementById("dateInput").value.trim();
+  card()[cur].date=v||"✓";(store._started=store._started||{})[monthKey(view)]=true;save();closeModal();render();
+};
+document.getElementById("unopen").onclick=()=>{card()[cur].date=null;save();closeModal();render()};
+document.getElementById("dateInput").onkeydown=e=>{if(e.key==="Enter")document.getElementById("save").click()};
+document.getElementById("prev").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()};
+document.getElementById("next").onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()};
+
+document.getElementById("name").oninput=e=>{(store._name=store._name||{})[monthKey(view)]=e.target.value;save()};
+let armed=false,t;
+const rb=document.getElementById("reset");
+rb.onclick=()=>{
+  if(rb.disabled)return;if(!armed){armed=true;rb.textContent="本当に作り直す？";rb.classList.add("warn");t=setTimeout(()=>{armed=false;rb.textContent="カードを作り直す";rb.classList.remove("warn")},3000);return}
+  clearTimeout(t);armed=false;rb.textContent="カードを作り直す";rb.classList.remove("warn");
+  store[monthKey(view)]=makeCard();if(store._bingo)delete store._bingo[monthKey(view)];stamp(monthKey(view));render();
+};
+render();
+</script>
+</body>
+</html>
