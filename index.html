@@ -130,11 +130,10 @@ function render(){
   document.getElementById("name").value=(store._name&&store._name[k])||"";
 }
 
-"日付を入力して "+
 let cur=null;
 function openModal(i){
   cur=i;const x=card()[i];
-  document.getElementById("mtitle").textContent=x.n+" を開ける";
+  document.getElementById("mtitle").textContent=x.n+" を日付を入力して開ける";
   const d=new Date();
   document.getElementById("dateInput").value=x.date||(d.getMonth()+1)+"/"+d.getDate();
   document.getElementById("unopen").style.display=x.date!==null?"":"none";
